@@ -1,6 +1,3 @@
-%global gitrev d9bed0d
-# gitrev is output of: git rev-parse --short HEAD
-
 %if 0%{?rhel} != 0 && 0%{?rhel} <= 7
 # Do not build bindings for python3 for RHEL <= 7
 %bcond_with python3
@@ -12,24 +9,21 @@
 %endif
 
 Name:           librepo
-Version:        1.7.16
-Release:        1%{?dist}
+Version:        1.8.1
+Release:        7%{?dist}
 Summary:        Repodata downloading library
 
 Group:          System Environment/Libraries
 License:        LGPLv2+
-URL:            https://github.com/Tojaj/librepo
-# Use the following commands to generate the tarball:
-#  git clone https://github.com/Tojaj/librepo.git
-#  cd librepo
-#  utils/make_tarball.sh %{gitrev}
-Source0:        librepo-%{gitrev}.tar.xz
+URL:            https://github.com/rpm-software-management/librepo
+Source0:        %{url}/archive/%{name}-%{version}/%{name}-%{version}.tar.gz
 
 BuildRequires:  check-devel
 BuildRequires:  cmake
+BuildRequires:  gcc
 BuildRequires:  doxygen
 BuildRequires:  expat-devel
-BuildRequires:  glib2-devel >= 2.22.0
+BuildRequires:  glib2-devel >= 2.26.0
 BuildRequires:  gpgme-devel
 BuildRequires:  libattr-devel
 BuildRequires:  libcurl-devel >= 7.19.0
@@ -54,7 +48,7 @@ Requires:       %{name}%{?_isa} = %{version}-%{release}
 %description devel
 Development files for librepo.
 
-%package -n python-librepo
+%package -n python-%{name}
 Summary:        Python bindings for the librepo library
 Group:          Development/Languages
 BuildRequires:  pygpgme
@@ -67,62 +61,65 @@ BuildRequires:  python-sphinx
 BuildRequires:  pyxattr
 Requires:       %{name}%{?_isa} = %{version}-%{release}
 
-%description -n python-librepo
+%description -n python-%{name}
 Python bindings for the librepo library.
 
 %if %{with python3}
-%package -n python3-librepo
+%package -n python3-%{name}
 Summary:        Python 3 bindings for the librepo library
 Group:          Development/Languages
 BuildRequires:  python3-pygpgme
 BuildRequires:  python3-devel
+%if %{with tests}
 BuildRequires:  python3-flask
 BuildRequires:  python3-nose
+%endif
 BuildRequires:  python3-sphinx
 BuildRequires:  python3-pyxattr
 Requires:       %{name}%{?_isa} = %{version}-%{release}
 
-%description -n python3-librepo
+%description -n python3-%{name}
 Python 3 bindings for the librepo library.
 %endif
 
 %prep
-%setup -q -n librepo
+%autosetup -p1
 
-%if %{with python3}
-rm -rf py3
-mkdir ../py3
-cp -a . ../py3/
-mv ../py3 ./
-%endif
+mkdir build build-py3
 
 %build
-%cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo .
-make %{?_smp_mflags}
+pushd build
+  %cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo ..
+  %make_build
+popd
 
 %if %{with python3}
-pushd py3
-%cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DPYTHON_DESIRED:str=3 .
-make %{?_smp_mflags}
+pushd build-py3
+  %cmake -DCMAKE_BUILD_TYPE=RelWithDebInfo -DPYTHON_DESIRED:str=3 ..
+  %make_build
 popd
 %endif
 
 %check
 %if %{with tests}
-make ARGS="-V" test
+pushd build
+  make ARGS="-V" test
+popd
 
 %if %{with python3}
-pushd py3
-make ARGS="-V" test
+pushd build-py3
+  make ARGS="-V" test
 popd
 %endif
 %endif
 
 %install
-make install DESTDIR=$RPM_BUILD_ROOT
+pushd build
+  %make_install
+popd
 %if %{with python3}
-pushd py3
-make install DESTDIR=$RPM_BUILD_ROOT
+pushd build-py3
+  %make_install
 popd
 %endif
 
@@ -132,22 +129,36 @@ popd
 
 %files
 %doc COPYING README.md
-%{_libdir}/librepo.so.*
+%{_libdir}/%{name}.so.*
 
 %files devel
-%{_libdir}/librepo.so
-%{_libdir}/pkgconfig/librepo.pc
-%{_includedir}/librepo/
+%{_libdir}/%{name}.so
+%{_libdir}/pkgconfig/%{name}.pc
+%{_includedir}/%{name}/
 
-%files -n python-librepo
-%{python_sitearch}/librepo/
+%files -n python-%{name}
+%{python_sitearch}/%{name}/
 
 %if %{with python3}
-%files -n python3-librepo
+%files -n python3-%{name}
 %{python3_sitearch}/
 %endif
 
 %changelog
+* Fri Jun 08 2018 Marek Blaha <mblaha@redhat.com> - 1.8.1-1
+- Add yumrecord substitution mechanism (mluscon)
+- Fix a memory leak in signature verification (cwalters)
+- Add new option LRO_FTPUSEEPSV
+- downloader prepare_next_transfer(): simplify long line
+- downloader prepare_next_transfer(): add missing error check
+- downloader prepare_next_transfer(): cleanup error path
+- downloader prepare_next_transfer() - fix memory leak on error path (Alan Jenkins)
+- handle: Don't use proxy cache for downloads of metalink/mirrorlist
+- handle: Don't set CURLOPT_HTTPHEADER into curl handle immediately when specified
+- downloader: Implement logic for no_cache param in LrDownloadTarget (RhBug: 1297762)
+- Add no_cache param to LrDownloadTarget and lr_downloadtarget_new()
+- New test: always try to download from the fastest mirror (Alexander Todorov)
+
 * Fri May 29 2015 Colin Walters <tmlcoch@redhat.com> - 1.7.16-1
 - Add LRI_LOWSPEEDTIME and LRI_LOWSPEEDLIMIT
 - downloader: Don't consider CURLE_RECV_ERROR and CURLE_SEND_ERROR as fatal errors (RhBug: 1219817)

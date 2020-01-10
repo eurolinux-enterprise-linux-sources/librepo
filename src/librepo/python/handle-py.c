@@ -384,6 +384,7 @@ py_setopt(_HandleObject *self, PyObject *args)
     case LRO_SSLVERIFYPEER:
     case LRO_SSLVERIFYHOST:
     case LRO_ADAPTIVEMIRRORSORTING:
+    case LRO_FTPUSEEPSV:
     case LRO_OFFLINE:
     {
         long d;
@@ -395,6 +396,8 @@ py_setopt(_HandleObject *self, PyObject *args)
             d = 1;
         } else if (obj == Py_None && option == LRO_ADAPTIVEMIRRORSORTING) {
             d = LRO_ADAPTIVEMIRRORSORTING_DEFAULT;
+        } else if (obj == Py_None && option == LRO_FTPUSEEPSV) {
+            d = LRO_FTPUSEEPSV_DEFAULT;
         // end of default attributes
         } else if (PyObject_IsTrue(obj) == 1)
             d = 1;
@@ -479,6 +482,8 @@ py_setopt(_HandleObject *self, PyObject *args)
     case LRO_MAXMIRRORTRIES:
     case LRO_MAXPARALLELDOWNLOADS:
     case LRO_MAXDOWNLOADSPERMIRROR:
+    case LRO_HTTPAUTHMETHODS:
+    case LRO_PROXYAUTHMETHODS:
     {
         long d;
 
@@ -500,6 +505,10 @@ py_setopt(_HandleObject *self, PyObject *args)
                 d = LRO_MAXPARALLELDOWNLOADS_DEFAULT;
             else if (option == LRO_MAXDOWNLOADSPERMIRROR)
                 d = LRO_MAXDOWNLOADSPERMIRROR_DEFAULT;
+            else if (option == LRO_HTTPAUTHMETHODS)
+                d = LRO_HTTPAUTHMETHODS_DEFAULT;
+            else if (option == LRO_PROXYAUTHMETHODS)
+                d = LRO_PROXYAUTHMETHODS_DEFAULT;
             else
                 assert(0);
         } else {
@@ -609,6 +618,7 @@ py_setopt(_HandleObject *self, PyObject *args)
         break;
     }
 
+    case LRO_YUMSLIST:
     case LRO_VARSUB: {
         Py_ssize_t len = 0;
         LrUrlVars *vars = NULL;
@@ -909,6 +919,7 @@ py_getinfo(_HandleObject *self, PyObject *args)
     case LRI_OFFLINE:
     case LRI_LOWSPEEDTIME:
     case LRI_LOWSPEEDLIMIT:
+    case LRI_FTPUSEEPSV:
         res = lr_handle_getinfo(self->handle,
                                 &tmp_err,
                                 (LrHandleInfoOption)option,
@@ -916,6 +927,19 @@ py_getinfo(_HandleObject *self, PyObject *args)
         if (!res)
             RETURN_ERROR(&tmp_err, -1, NULL);
         return PyLong_FromLong(lval);
+
+    /* LrAuth* option */
+    case LRI_HTTPAUTHMETHODS:
+    case LRI_PROXYAUTHMETHODS: {
+        LrAuth auth = 0;
+        res = lr_handle_getinfo(self->handle,
+                                &tmp_err,
+                                (LrHandleInfoOption)option,
+                                &auth);
+        if (!res)
+            RETURN_ERROR(&tmp_err, -1, NULL);
+        return PyLong_FromLong((long) auth);
+    }
 
     /* LrIpResolveType* option  */
     case LRI_IPRESOLVE: {
@@ -930,6 +954,7 @@ py_getinfo(_HandleObject *self, PyObject *args)
     }
 
     /* List option */
+    case LRI_YUMSLIST:
     case LRI_VARSUB: {
         LrUrlVars *vars;
         PyObject *list;
@@ -1080,9 +1105,9 @@ py_perform(_HandleObject *self, PyObject *args)
     if (ret)
         Py_RETURN_NONE; // All fine - Return None
 
-    // Error occured
+    // Error occurred
     if (PyErr_Occurred()) {
-        // Python exception occured (in a python callback probably)
+        // Python exception occurred (in a python callback probably)
         return NULL;
     } else if(tmp_err->code == LRE_INTERRUPTED) {
         // Interrupted by Ctr+C
@@ -1146,9 +1171,9 @@ py_download_package(_HandleObject *self, PyObject *args)
     if (ret)
         Py_RETURN_NONE; // All fine - Return None
 
-    // Error occured
+    // Error occurred
     if (PyErr_Occurred()) {
-        // Python exception occured (in a python callback probably)
+        // Python exception occurred (in a python callback probably)
         return NULL;
     } else if(tmp_err->code == LRE_INTERRUPTED) {
         // Interrupted by Ctr+C

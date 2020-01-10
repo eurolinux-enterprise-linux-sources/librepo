@@ -60,7 +60,7 @@ typedef enum {
  * @return          New allocated ::LrResult object
  */
 LrResult *
-lr_result_init();
+lr_result_init(void);
 
 /** Clean result object.
  * @param result    Result object.
@@ -78,7 +78,7 @@ lr_result_free(LrResult *result);
  * @param result    Result object.
  * @param err       GError **
  * @param option    Option from ::LrResultInfoOption enum.
- * @param ...       Apropriate variable for the selected option.
+ * @param ...       Appropriate variable for the selected option.
  * @return          TRUE if everything is ok, false if err is set.
  */
 gboolean

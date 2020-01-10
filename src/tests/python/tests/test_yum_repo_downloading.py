@@ -32,7 +32,7 @@ class TestCaseYumRepoDownloading(TestCaseWithFlask):
             os.environ.pop('GNUPGHOME')
         else:
             os.environ['GNUPGHOME'] = self._gnupghome
-        shutil.rmtree(self.tmpdir)
+        shutil.rmtree(self.tmpdir, True)
 
     def test_download_repo_01(self):
         h = librepo.Handle()
@@ -576,6 +576,50 @@ class TestCaseYumRepoDownloading(TestCaseWithFlask):
         self.assertFalse(h.mirrors)
         self.assertFalse(h.metalink)
 
+    def test_partial_download_repo_with_substitution(self):
+        h = librepo.Handle()
+        r = librepo.Result()
+
+        url = "%s%s" % (self.MOCKURL, config.REPO_YUM_01_PATH)
+        h.urls = [url]
+        h.repotype = librepo.LR_YUMREPO
+        h.destdir = self.tmpdir
+        h.yumdlist = ["foo", "primary"]
+        h.yumslist = [("foo", "other")]
+        h.perform(r)
+
+        yum_repo = r.getinfo(librepo.LRR_YUM_REPO)
+
+        self.assertEqual(yum_repo,
+            {#'deltainfo': None,
+             'destdir': self.tmpdir,
+             #'filelists': None,
+             #'filelists_db': None,
+             #'group': None,
+             #'group_gz': None,
+             #'origin': None,
+             'other': self.tmpdir+'/repodata/a8977cdaa0b14321d9acfab81ce8a85e869eee32-other.xml.gz',
+             #'other_db': None,
+             #'prestodelta': None,
+             'primary': self.tmpdir+'/repodata/4543ad62e4d86337cd1949346f9aec976b847b58-primary.xml.gz',
+             #'primary_db': None,
+             'repomd': self.tmpdir+'/repodata/repomd.xml',
+             #'updateinfo': None,
+             'url': url,
+             'signature': None,
+             'mirrorlist': None,
+             'metalink': None}
+        )
+
+        # Test if all mentioned files really exist
+        self.assertTrue(os.path.isdir(yum_repo["destdir"]))
+        for key in yum_repo:
+            if yum_repo[key] and (key not in ("url", "destdir")):
+                self.assertTrue(os.path.isfile(yum_repo[key]))
+
+        self.assertFalse(h.mirrors)
+        self.assertFalse(h.metalink)
+
     def test_download_repo_01_without_result_object(self):
         h = librepo.Handle()
 
@@ -946,7 +990,7 @@ class TestCaseYumRepoDownloading(TestCaseWithFlask):
 
         # First host is bad, but fastestmirror is used and thus
         # working mirror should be added to the first position
-        # and download should be successfull even if maxmirrortries
+        # and download should be successful even if maxmirrortries
         # is equal to 1.
         h.perform(r)
 
@@ -982,7 +1026,7 @@ class TestCaseYumRepoDownloading(TestCaseWithFlask):
 
         # First host is bad, but fastestmirror is used and thus
         # working mirror should be added to the first position
-        # and download should be successfull even if maxmirrortries
+        # and download should be successful even if maxmirrortries
         # is equal to 1.
         h.perform(r)
 
@@ -1596,8 +1640,8 @@ class TestCaseYumRepoDownloading(TestCaseWithFlask):
         os.makedirs(dir_01)
         os.makedirs(dir_02)
 
-        EXP_MRS = [u'http://127.0.0.1:5000/yum/static/01/',
-                   u'http://127.0.0.1:5000/yum/static/01/']
+        EXP_MRS = [u'http://127.0.0.1:%s/yum/static/01/' % self.PORT,
+                   u'http://127.0.0.1:%s/yum/static/01/' % self.PORT]
 
         # 1) At first, work online
         h = librepo.Handle()

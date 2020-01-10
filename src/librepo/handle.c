@@ -63,6 +63,8 @@ lr_get_curl_handle()
     curl_easy_setopt(h, CURLOPT_LOW_SPEED_LIMIT, LRO_LOWSPEEDLIMIT_DEFAULT);
     curl_easy_setopt(h, CURLOPT_SSL_VERIFYHOST, 2);
     curl_easy_setopt(h, CURLOPT_SSL_VERIFYPEER, 1);
+    curl_easy_setopt(h, CURLOPT_FTP_USE_EPSV, LRO_FTPUSEEPSV_DEFAULT);
+
     return h;
 }
 
@@ -78,7 +80,7 @@ lr_handle_free_list(char ***list)
 }
 
 LrHandle *
-lr_handle_init()
+lr_handle_init(void)
 {
     LrHandle *handle;
     CURL *curl = lr_get_curl_handle();
@@ -104,6 +106,9 @@ lr_handle_init()
     handle->gnupghomedir = g_strdup(LRO_GNUPGHOMEDIR_DEFAULT);
     handle->fastestmirrortimeout = LRO_FASTESTMIRRORTIMEOUT_DEFAULT;
     handle->offline = LRO_OFFLINE_DEFAULT;
+    handle->httpauthmethods = LRO_HTTPAUTHMETHODS_DEFAULT;
+    handle->proxyauthmethods = LRO_PROXYAUTHMETHODS_DEFAULT;
+    handle->ftpuseepsv = LRO_FTPUSEEPSV_DEFAULT;
 
     return handle;
 }
@@ -137,11 +142,11 @@ lr_handle_free(LrHandle *handle)
     lr_lrmirrorlist_free(handle->mirrors);
     lr_metalink_free(handle->metalink);
     lr_handle_free_list(&handle->yumdlist);
+    lr_urlvars_free(handle->yumslist);
     lr_handle_free_list(&handle->yumblist);
     lr_urlvars_free(handle->urlvars);
     lr_free(handle->gnupghomedir);
     lr_handle_free_list(&handle->httpheader);
-    curl_slist_free_all(handle->curl_httpheader);
     lr_free(handle);
 }
 
@@ -153,6 +158,37 @@ typedef enum {
     LR_REMOTESOURCE_OFFLINE_OPT,
     LR_REMOTESOURCE_OTHER,
 } LrChangedRemoteSource;
+
+static unsigned long curlauth_bitmask(LrAuth mask)
+{
+    unsigned long out_mask = 0UL;
+
+    if (mask == LR_AUTH_NONE)
+        return (unsigned long) CURLAUTH_NONE;
+
+    if (mask & LR_AUTH_BASIC)
+        out_mask |= CURLAUTH_BASIC;
+    if (mask & LR_AUTH_DIGEST)
+        out_mask |= CURLAUTH_DIGEST;
+    if (mask & LR_AUTH_NEGOTIATE)
+#ifdef CURLAUTH_NEGOTIATE
+        out_mask |= CURLAUTH_NEGOTIATE;
+#else
+        out_mask |= CURLAUTH_GSSNEGOTIATE;
+#endif
+    if (mask & LR_AUTH_NTLM)
+        out_mask |= CURLAUTH_NTLM;
+    if (mask & LR_AUTH_DIGEST_IE)
+        out_mask |= CURLAUTH_DIGEST_IE;
+    if (mask & LR_AUTH_NTLM_WB)
+        out_mask |= CURLAUTH_NTLM_WB;
+    if (mask & LR_AUTH_ONLY)
+        out_mask |= CURLAUTH_ONLY;
+    if (mask == LR_AUTH_ANY)
+        out_mask |= CURLAUTH_ANY;
+
+    return out_mask;
+}
 
 static void
 lr_handle_remote_sources_changed(LrHandle *handle, LrChangedRemoteSource type)
@@ -274,10 +310,13 @@ lr_handle_setopt(LrHandle *handle,
         break;
 
     case LRO_HTTPAUTH:
-        if (va_arg(arg, long) ==  1)
-            c_rc = curl_easy_setopt(c_h, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
-        else
+        if (va_arg(arg, long) ==  0) {
             c_rc = curl_easy_setopt(c_h, CURLOPT_HTTPAUTH, CURLAUTH_BASIC);
+            handle->httpauthmethods = LR_AUTH_BASIC;
+        } else {
+            c_rc = curl_easy_setopt(c_h, CURLOPT_HTTPAUTH, CURLAUTH_ANY);
+            handle->httpauthmethods = LR_AUTH_ANY;
+        }
         break;
 
     case LRO_USERPWD:
@@ -315,10 +354,13 @@ lr_handle_setopt(LrHandle *handle,
     }
 
     case LRO_PROXYAUTH:
-        if (va_arg(arg, long) == 1)
-            c_rc = curl_easy_setopt(c_h, CURLOPT_PROXYAUTH, CURLAUTH_ANY);
-        else
+        if (va_arg(arg, long) == 0) {
             c_rc = curl_easy_setopt(c_h, CURLOPT_PROXYAUTH, CURLAUTH_BASIC);
+            handle->proxyauthmethods = LR_AUTH_BASIC;
+        } else {
+            c_rc = curl_easy_setopt(c_h, CURLOPT_PROXYAUTH, CURLAUTH_ANY);
+            handle->proxyauthmethods = LR_AUTH_ANY;
+        }
         break;
 
     case LRO_PROXYUSERPWD:
@@ -439,15 +481,7 @@ lr_handle_setopt(LrHandle *handle,
     {
         char **list = va_arg(arg, char **);
         lr_handle_free_list(&handle->httpheader);
-        curl_slist_free_all(handle->curl_httpheader);
         handle->httpheader = lr_strv_dup(list);
-
-        struct curl_slist *headers = NULL;
-        for (int x=0; list && handle->httpheader[x]; x++)
-            headers = curl_slist_append(headers, handle->httpheader[x]);
-
-        handle->curl_httpheader = headers;
-        curl_easy_setopt(c_h, CURLOPT_HTTPHEADER, headers);
         break;
     }
 
@@ -495,6 +529,13 @@ lr_handle_setopt(LrHandle *handle,
         }
 
         break;
+
+    case LRO_YUMSLIST: {
+        LrUrlVars *vars = va_arg(arg, LrUrlVars *);
+        lr_urlvars_free(handle->yumslist);
+        handle->yumslist = vars;
+        break;
+    }
 
     case LRO_VARSUB: {
         LrUrlVars *vars = va_arg(arg, LrUrlVars *);
@@ -588,7 +629,7 @@ lr_handle_setopt(LrHandle *handle,
 
     case LRO_SSLVERIFYHOST:
         handle->sslverifyhost = va_arg(arg, long) ? 2 : 0;
-        c_rc = curl_easy_setopt(c_h, CURLOPT_SSL_VERIFYPEER, handle->sslverifyhost);
+        c_rc = curl_easy_setopt(c_h, CURLOPT_SSL_VERIFYHOST, handle->sslverifyhost);
         break;
 
     case LRO_SSLCLIENTCERT:
@@ -656,11 +697,33 @@ lr_handle_setopt(LrHandle *handle,
         handle->offline = va_arg(arg, long) ? 1 : 0;
         break;
 
+    case LRO_HTTPAUTHMETHODS: {
+        LrAuth in_bitmask = va_arg(arg, LrAuth);
+        long bitmask = curlauth_bitmask(in_bitmask);
+        handle->httpauthmethods = in_bitmask;
+        c_rc = curl_easy_setopt(c_h, CURLOPT_HTTPAUTH, bitmask);
+        break;
+    }
+
+    case LRO_PROXYAUTHMETHODS: {
+        LrAuth in_bitmask = va_arg(arg, LrAuth);
+        long bitmask = curlauth_bitmask(in_bitmask);
+        handle->proxyauthmethods = in_bitmask;
+        c_rc = curl_easy_setopt(c_h, CURLOPT_PROXYAUTH, bitmask);
+        break;
+    }
+
+    case LRO_FTPUSEEPSV:
+        handle->ftpuseepsv = va_arg(arg, long) ? 1 : 0;
+        c_rc = curl_easy_setopt(c_h, CURLOPT_FTP_USE_EPSV, handle->ftpuseepsv);
+        break;
+
     default:
         g_set_error(err, LR_HANDLE_ERROR, LRE_BADOPTARG,
                     "Unknown option");
         ret = FALSE;
         break;
+
     };
 
     /* Handle CURL error return code */
@@ -687,6 +750,41 @@ lr_handle_setopt(LrHandle *handle,
 /*
  * Internal mirrorlist stuff
  */
+
+static gboolean
+download_non_cached_url(LrHandle *lr_handle, const char *url, int fd, GError **err)
+{
+    // This function is almost 1:1 copy of lr_download_url
+
+    gboolean ret;
+    LrDownloadTarget *target;
+    GError *tmp_err = NULL;
+
+    assert(url);
+    assert(!err || *err == NULL);
+
+    // Prepare target
+    target = lr_downloadtarget_new(lr_handle,
+                                   url, NULL, fd, NULL,
+                                   NULL, 0, 0, NULL, NULL,
+                                   NULL, NULL, NULL, 0, 0, TRUE);
+
+    // Download the target
+    ret = lr_download_target(target, &tmp_err);
+
+    assert(ret || tmp_err);
+    assert(!(target->err) || !ret);
+
+    if (!ret)
+        g_propagate_error(err, tmp_err);
+
+    lr_downloadtarget_free(target);
+
+    lseek(fd, 0, SEEK_SET);
+
+    return ret;
+}
+
 
 static gboolean
 lr_handle_prepare_urls(LrHandle *handle, GError **err)
@@ -773,7 +871,7 @@ lr_handle_prepare_mirrorlist(LrHandle *handle, gchar *localpath, GError **err)
         }
 
         url = lr_prepend_url_protocol(handle->mirrorlisturl);
-        if (!lr_download_url(handle, url, fd, err)) {
+        if (!download_non_cached_url(handle, url, fd, err)) {
             close(fd);
             return FALSE;
         }
@@ -889,7 +987,7 @@ lr_handle_prepare_metalink(LrHandle *handle, gchar *localpath, GError **err)
         }
 
         url = lr_prepend_url_protocol(handle->metalinkurl);
-        if (!lr_download_url(handle, url, fd, err)) {
+        if (!download_non_cached_url(handle, url, fd, err)) {
             close(fd);
             return FALSE;
         }
@@ -1298,6 +1396,12 @@ lr_handle_getinfo(LrHandle *handle,
         *lnum = (long) handle->maxmirrortries;
         break;
 
+    case LRI_YUMSLIST: {
+        LrUrlVars **slist = va_arg(arg, LrUrlVars **);
+        *slist = handle->yumslist;
+        break;
+    }
+
     case LRI_VARSUB: {
         LrUrlVars **vars = va_arg(arg, LrUrlVars **);
         *vars = handle->urlvars;
@@ -1417,6 +1521,23 @@ lr_handle_getinfo(LrHandle *handle,
     case LRI_LOWSPEEDLIMIT:
         lnum = va_arg(arg, long *);
         *lnum = (long) (handle->lowspeedlimit);
+        break;
+
+    case LRI_HTTPAUTHMETHODS: {
+        LrAuth *auth = va_arg(arg, LrAuth *);
+        *auth = handle->httpauthmethods;
+        break;
+    }
+
+    case LRI_PROXYAUTHMETHODS: {
+        LrAuth *auth = va_arg(arg, LrAuth *);
+        *auth = handle->proxyauthmethods;
+        break;
+    }
+
+    case LRI_FTPUSEEPSV:
+        lnum = va_arg(arg, long *);
+        *lnum = (long) handle->ftpuseepsv;
         break;
 
     default:

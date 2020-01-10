@@ -1,5 +1,5 @@
 /* librepo - A library providing (libcURL like) API to downloading repository
- * Copyright (C) 2012  Tomas Mlcoch
+ * Copyright (C) 2016  Martin Hatina
  *
  * Licensed under the GNU Lesser General Public License Version 2.1
  *
@@ -19,48 +19,40 @@
  */
 
 #include <Python.h>
-#undef NDEBUG
-#include <assert.h>
+#include <glib.h>
 
 #include "librepo/librepo.h"
 
-#include "packagedownloader-py.h"
-#include "handle-py.h"
-#include "packagetarget-py.h"
-#include "exception-py.h"
+#include "metadatatarget-py.h"
+#include "metadatadownloader-py.h"
+#include "globalstate-py.h"
 #include "downloader-py.h"
-#include "globalstate-py.h" // GIL Hack
 
 PyObject *
-py_download_packages(G_GNUC_UNUSED PyObject *self, PyObject *args)
+py_download_metadata(PyObject *self, PyObject *args)
 {
     gboolean ret;
     PyObject *py_list;
-    int failfast;
-    LrPackageDownloadFlag flags = 0;
-    GError *tmp_err = NULL;
+    GError *error = NULL;
     PyThreadState *state = NULL;
 
-    if (!PyArg_ParseTuple(args, "O!i:download_packages",
-                          &PyList_Type, &py_list, &failfast))
+    if (!PyArg_ParseTuple(args, "O!:download_metadata",
+                          &PyList_Type, &py_list))
         return NULL;
 
     // Convert python list to GSList
     GSList *list = NULL;
     Py_ssize_t len = PyList_Size(py_list);
     for (Py_ssize_t x=0; x < len; x++) {
-        PyObject *py_packagetarget = PyList_GetItem(py_list, x);
-        LrPackageTarget *target = PackageTarget_FromPyObject(py_packagetarget);
+        PyObject *py_metadatatarget = PyList_GetItem(py_list, x);
+        LrMetadataTarget *target = MetadataTarget_FromPyObject(py_metadatatarget);
         if (!target)
             return NULL;
-        PackageTarget_SetThreadState(py_packagetarget, &state);
+        MetadataTarget_SetThreadState(py_metadatatarget, &state);
         list = g_slist_append(list, target);
     }
 
     Py_XINCREF(py_list);
-
-    if (failfast)
-        flags |= LR_PACKAGEDOWNLOAD_FAILFAST;
 
     // XXX: GIL Hack
     int hack_rc = gil_logger_hack_begin(&state);
@@ -68,14 +60,14 @@ py_download_packages(G_GNUC_UNUSED PyObject *self, PyObject *args)
         return NULL;
 
     BeginAllowThreads(&state);
-    ret = lr_download_packages(list, flags, &tmp_err);
+    ret = lr_download_metadata(list, &error);
     EndAllowThreads(&state);
 
     // XXX: GIL Hack
     if (!gil_logger_hack_end(hack_rc))
         return NULL;
 
-    assert((ret && !tmp_err) || (!ret && tmp_err));
+    assert((ret && !error) || (!ret && error));
 
     Py_XDECREF(py_list);
 
@@ -86,14 +78,14 @@ py_download_packages(G_GNUC_UNUSED PyObject *self, PyObject *args)
     if (PyErr_Occurred()) {
         // Python exception occurred (in a python callback probably)
         return NULL;
-    } else if(tmp_err->code == LRE_INTERRUPTED) {
+    } else if(error->code == LRE_INTERRUPTED) {
         // Interrupted by Ctr+C
-        g_error_free(tmp_err);
+        g_error_free(error);
         PyErr_SetInterrupt();
         PyErr_CheckSignals();
         return NULL;
     } else {
         // Return exception created from GError
-        RETURN_ERROR(&tmp_err, -1, NULL);
+        RETURN_ERROR(&error, -1, NULL);
     }
 }

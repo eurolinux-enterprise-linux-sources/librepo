@@ -25,6 +25,8 @@
 
 #include "exception-py.h"
 #include "handle-py.h"
+#include "metadatadownloader-py.h"
+#include "metadatatarget-py.h"
 #include "packagedownloader-py.h"
 #include "packagetarget-py.h"
 #include "result-py.h"
@@ -115,6 +117,8 @@ static struct PyMethodDef librepo_methods[] = {
     { "set_debug_log_handler",  (PyCFunction)py_set_debug_log_handler,
       METH_VARARGS, NULL },
     { "download_packages",      (PyCFunction)py_download_packages,
+      METH_VARARGS, NULL },
+    { "download_metadata",      (PyCFunction)py_download_metadata,
       METH_VARARGS, NULL },
     { "download_url",           (PyCFunction)py_download_url,
       METH_VARARGS, NULL },
@@ -223,6 +227,12 @@ init_librepo(void)
     Py_INCREF(&PackageTarget_Type);
     PyModule_AddObject(m, "PackageTarget", (PyObject *)&PackageTarget_Type);
 
+    // _librepo.MetadataTarget
+    if (PyType_Ready(&MetadataTarget_Type) < 0)
+        INITERROR;
+    Py_INCREF(&MetadataTarget_Type);
+    PyModule_AddObject(m, "MetadataTarget", (PyObject *)&MetadataTarget_Type);
+
     // Init module
     Py_AtExit(exit_librepo);
 
@@ -275,6 +285,7 @@ init_librepo(void)
     PYMODULE_ADDINTCONSTANT(LRO_GPGCHECK);
     PYMODULE_ADDINTCONSTANT(LRO_CHECKSUM);
     PYMODULE_ADDINTCONSTANT(LRO_YUMDLIST);
+    PYMODULE_ADDINTCONSTANT(LRO_YUMSLIST);
     PYMODULE_ADDINTCONSTANT(LRO_RPMMDDLIST);
     PYMODULE_ADDINTCONSTANT(LRO_YUMBLIST);
     PYMODULE_ADDINTCONSTANT(LRO_RPMMDBLIST);
@@ -291,6 +302,9 @@ init_librepo(void)
     PYMODULE_ADDINTCONSTANT(LRO_FASTESTMIRRORTIMEOUT);
     PYMODULE_ADDINTCONSTANT(LRO_HTTPHEADER);
     PYMODULE_ADDINTCONSTANT(LRO_OFFLINE);
+    PYMODULE_ADDINTCONSTANT(LRO_HTTPAUTHMETHODS);
+    PYMODULE_ADDINTCONSTANT(LRO_PROXYAUTHMETHODS);
+    PYMODULE_ADDINTCONSTANT(LRO_FTPUSEEPSV);
     PYMODULE_ADDINTCONSTANT(LRO_SENTINEL);
 
     // Handle info options
@@ -306,6 +320,7 @@ init_librepo(void)
     PYMODULE_ADDINTCONSTANT(LRI_REPOTYPE);
     PYMODULE_ADDINTCONSTANT(LRI_USERAGENT);
     PYMODULE_ADDINTCONSTANT(LRI_YUMDLIST);
+    PYMODULE_ADDINTCONSTANT(LRI_YUMSLIST);
     PYMODULE_ADDINTCONSTANT(LRI_RPMMDDLIST);
     PYMODULE_ADDINTCONSTANT(LRI_YUMBLIST);
     PYMODULE_ADDINTCONSTANT(LRI_RPMMDBLIST);
@@ -332,6 +347,9 @@ init_librepo(void)
     PYMODULE_ADDINTCONSTANT(LRI_OFFLINE);
     PYMODULE_ADDINTCONSTANT(LRI_LOWSPEEDTIME);
     PYMODULE_ADDINTCONSTANT(LRI_LOWSPEEDLIMIT);
+    PYMODULE_ADDINTCONSTANT(LRI_HTTPAUTHMETHODS);
+    PYMODULE_ADDINTCONSTANT(LRI_PROXYAUTHMETHODS);
+    PYMODULE_ADDINTCONSTANT(LRI_FTPUSEEPSV);
     PYMODULE_ADDINTCONSTANT(LRI_SENTINEL);
 
     // Check options
@@ -436,6 +454,17 @@ init_librepo(void)
     PYMODULE_ADDINTCONSTANT(LR_CB_OK);
     PYMODULE_ADDINTCONSTANT(LR_CB_ABORT);
     PYMODULE_ADDINTCONSTANT(LR_CB_ERROR);
+
+    // Auth methods
+    PYMODULE_ADDINTCONSTANT(LR_AUTH_NONE);
+    PYMODULE_ADDINTCONSTANT(LR_AUTH_BASIC);
+    PYMODULE_ADDINTCONSTANT(LR_AUTH_DIGEST);
+    PYMODULE_ADDINTCONSTANT(LR_AUTH_NEGOTIATE);
+    PYMODULE_ADDINTCONSTANT(LR_AUTH_NTLM);
+    PYMODULE_ADDINTCONSTANT(LR_AUTH_DIGEST_IE);
+    PYMODULE_ADDINTCONSTANT(LR_AUTH_NTLM_WB);
+    PYMODULE_ADDINTCONSTANT(LR_AUTH_ONLY);
+    PYMODULE_ADDINTCONSTANT(LR_AUTH_ANY);
 
     // Init librepo library
     lr_global_init();

@@ -134,11 +134,11 @@ class TestCaseHandle(unittest.TestCase):
         h.setopt(librepo.LRO_FASTESTMIRROR, False)
         self.assertEqual(h.getinfo(librepo.LRI_FASTESTMIRROR), False)
 
-        self.assertEqual(h.getinfo(librepo.LRI_LOWSPEEDTIME), 120)
-        h.setopt(librepo.LRO_LOWSPEEDTIME, 30)
         self.assertEqual(h.getinfo(librepo.LRI_LOWSPEEDTIME), 30)
-        h.setopt(librepo.LRO_LOWSPEEDTIME, None)
+        h.setopt(librepo.LRO_LOWSPEEDTIME, 120)
         self.assertEqual(h.getinfo(librepo.LRI_LOWSPEEDTIME), 120)
+        h.setopt(librepo.LRO_LOWSPEEDTIME, None)
+        self.assertEqual(h.getinfo(librepo.LRI_LOWSPEEDTIME), 30)
 
         self.assertEqual(h.getinfo(librepo.LRI_LOWSPEEDLIMIT), 1000)
         h.setopt(librepo.LRO_LOWSPEEDLIMIT, 123)
@@ -225,6 +225,25 @@ class TestCaseHandle(unittest.TestCase):
                          ["Accept: text/xml", "charsets: utf-8"])
         h.setopt(librepo.LRO_HTTPHEADER, None)
         self.assertEqual(h.getinfo(librepo.LRI_HTTPHEADER), None)
+
+        self.assertEqual(h.getinfo(librepo.LRI_HTTPAUTHMETHODS), librepo.LR_AUTH_BASIC)
+        h.setopt(librepo.LRO_HTTPAUTHMETHODS,  librepo.LR_AUTH_DIGEST)
+        self.assertEqual(h.getinfo(librepo.LRI_HTTPAUTHMETHODS), librepo.LR_AUTH_DIGEST)
+        h.setopt(librepo.LRO_HTTPAUTHMETHODS,  None)
+        self.assertEqual(h.getinfo(librepo.LRI_HTTPAUTHMETHODS), librepo.LR_AUTH_BASIC)
+
+        self.assertEqual(h.getinfo(librepo.LRI_PROXYAUTHMETHODS), librepo.LR_AUTH_BASIC)
+        h.setopt(librepo.LRO_PROXYAUTHMETHODS,  librepo.LR_AUTH_DIGEST)
+        self.assertEqual(h.getinfo(librepo.LRI_PROXYAUTHMETHODS), librepo.LR_AUTH_DIGEST)
+        h.setopt(librepo.LRO_PROXYAUTHMETHODS,  None)
+        self.assertEqual(h.getinfo(librepo.LRI_PROXYAUTHMETHODS), librepo.LR_AUTH_BASIC)
+
+        self.assertEqual(h.getinfo(librepo.LRI_FTPUSEEPSV), 1)
+        h.setopt(librepo.LRO_FTPUSEEPSV, 0)
+        self.assertEqual(h.getinfo(librepo.LRI_FTPUSEEPSV), 0)
+        h.setopt(librepo.LRO_FTPUSEEPSV, None)
+        self.assertEqual(h.getinfo(librepo.LRI_FTPUSEEPSV), 1)
+
 
     def test_handle_setget_attr(self):
         """No exception should be raised."""
@@ -326,11 +345,11 @@ class TestCaseHandle(unittest.TestCase):
         h.fastestmirror = False
         self.assertEqual(h.fastestmirror, False)
 
-        self.assertEqual(h.lowspeedtime, 120)
+        self.assertEqual(h.lowspeedtime, 30)
         h.lowspeedtime = 20
         self.assertEqual(h.lowspeedtime, 20)
         h.lowspeedtime = None
-        self.assertEqual(h.lowspeedtime, 120)
+        self.assertEqual(h.lowspeedtime, 30)
 
         self.assertEqual(h.lowspeedlimit, 1000)
         h.lowspeedlimit = 55
@@ -393,6 +412,32 @@ class TestCaseHandle(unittest.TestCase):
         self.assertEqual(h.httpheader, ["Accept: text/xml", "charsets: utf-8"])
         h.httpheader = None
         self.assertEqual(h.httpheader, None)
+
+        self.assertEqual(h.httpauthmethods, librepo.LR_AUTH_BASIC)
+        h.httpauthmethods = librepo.LR_AUTH_NTLM
+        self.assertEqual(h.httpauthmethods, librepo.LR_AUTH_NTLM)
+        h.httpauthmethods = None
+        self.assertEqual(h.httpauthmethods, librepo.LR_AUTH_BASIC)
+
+        self.assertEqual(h.proxyauthmethods, librepo.LR_AUTH_BASIC)
+        h.proxyauthmethods = librepo.LR_AUTH_NTLM
+        self.assertEqual(h.proxyauthmethods, librepo.LR_AUTH_NTLM)
+        h.proxyauthmethods = None
+        self.assertEqual(h.proxyauthmethods, librepo.LR_AUTH_BASIC)
+
+        self.assertTrue(h.ftpuseepsv)
+        h.ftpuseepsv = 0
+        self.assertFalse(h.ftpuseepsv)
+        h.ftpuseepsv = 1
+        self.assertTrue(h.ftpuseepsv)
+        h.ftpuseepsv = False
+        self.assertFalse(h.ftpuseepsv)
+        h.ftpuseepsv = True
+        self.assertTrue(h.ftpuseepsv)
+        h.ftpuseepsv = 0
+        h.ftpuseepsv = None
+        self.assertTrue(h.ftpuseepsv)
+
 
     def test_handle_setopt_none_value(self):
         """Using None in setopt."""
@@ -500,3 +545,8 @@ class TestCaseHandle(unittest.TestCase):
         h.fastestmirrortimeout = None
         h.setopt(librepo.LRO_HTTPHEADER, None)
         h.httpheader = None
+        h.setopt(librepo.LRO_FTPUSEEPSV, None)
+        h.ftpuseepsv = None
+
+        h.httpauthmethods = None
+        h.proxyauthmethods = None

@@ -7,6 +7,7 @@ SET (librepo_SRCS
      handle.c
      lrmirrorlist.c
      metalink.c
+     metadata_downloader.c
      mirrorlist.c
      package_downloader.c
      rcodes.c
@@ -25,6 +26,7 @@ SET(librepo_HEADERS
     gpg.h
     handle.h
     librepo.h
+    metadata_downloader.h
     metalink.h
     mirrorlist.h
     package_downloader.h
@@ -40,12 +42,14 @@ SET(librepo_HEADERS
     xmlparser.h
     yum.h
     downloader.h
+    downloader_internal.h
     downloadtarget.h)
 
 ADD_LIBRARY(librepo SHARED ${librepo_SRCS})
 TARGET_LINK_LIBRARIES(librepo
                         ${EXPAT_LIBRARY}
                         ${CURL_LIBRARY}
+                        ${LIBCRYPTO_LIBRARIES}
                         ${GPGME_VANILLA_LIBRARIES}
                         ${GLIB2_LIBRARIES}
                      )
@@ -59,11 +63,10 @@ CONFIGURE_FILE("version.h.in" "${CMAKE_CURRENT_SOURCE_DIR}/version.h" @ONLY)
 IF (CMAKE_SIZEOF_VOID_P MATCHES "8")
   SET (LIB_SUFFIX "64")
 ENDIF (CMAKE_SIZEOF_VOID_P MATCHES "8")
-SET (LIB_INSTALL_DIR "${CMAKE_INSTALL_PREFIX}/lib${LIB_SUFFIX}")
 
-INSTALL(FILES ${librepo_HEADERS} DESTINATION include/librepo)
-INSTALL(TARGETS librepo LIBRARY DESTINATION ${LIB_INSTALL_DIR})
+INSTALL(FILES ${librepo_HEADERS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/librepo)
+INSTALL(TARGETS librepo LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 INSTALL(FILES "${CMAKE_BINARY_DIR}/librepo.pc"
-       DESTINATION "${LIB_INSTALL_DIR}/pkgconfig")
+	DESTINATION "${CMAKE_INSTALL_LIBDIR}/pkgconfig")
 
 ADD_SUBDIRECTORY(python)

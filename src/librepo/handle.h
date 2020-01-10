@@ -53,7 +53,7 @@ typedef struct _LrHandle LrHandle;
 #define LRO_MAXSPEED_DEFAULT                G_GINT64_CONSTANT(0)
 
 /** LRO_CONNECTTIMEOUT default value */
-#define LRO_CONNECTTIMEOUT_DEFAULT          120L
+#define LRO_CONNECTTIMEOUT_DEFAULT          30L
 
 /** LRO_MAXMIRRORTRIES default value */
 #define LRO_MAXMIRRORTRIES_DEFAULT          0L
@@ -80,7 +80,7 @@ typedef struct _LrHandle LrHandle;
 #define LRO_LOWSPEEDTIME_MIN                0L
 
 /** LRO_LOWSPEEDTIME default value */
-#define LRO_LOWSPEEDTIME_DEFAULT            120L
+#define LRO_LOWSPEEDTIME_DEFAULT            30L
 
 /** LRO_LOWSPEEDLIMIT minimal allowed value */
 #define LRO_LOWSPEEDLIMIT_MIN               0L
@@ -106,6 +106,16 @@ typedef struct _LrHandle LrHandle;
 /** LRO_OFFLINE default value */
 #define LRO_OFFLINE_DEFAULT                 0L
 
+/** LRO_HTTPAUTHMETHODS default value*/
+#define LRO_HTTPAUTHMETHODS_DEFAULT         LR_AUTH_BASIC
+
+/** LRO_PROXYAUTHMETHODS default value*/
+#define LRO_PROXYAUTHMETHODS_DEFAULT        LR_AUTH_BASIC
+
+/** LRO_FTPUSEEPSV default value */
+#define LRO_FTPUSEEPSV_DEFAULT              1L
+
+
 /** Handle options for the ::lr_handle_setopt function. */
 typedef enum {
 
@@ -117,7 +127,9 @@ typedef enum {
         List of base repo URLs */
 
     LRO_MIRRORLIST,  /*!< (char *)
-        Mirrorlist or metalink url. This option is DEPRECATED */
+        Mirrorlist or metalink url.
+        This option is DEPRECATED!
+        Use LRO_MIRRORLISTURL or LRO_METALINKURL instead. */
 
     LRO_MIRRORLISTURL, /*!< (char *)
         Mirrorlist url */
@@ -129,7 +141,9 @@ typedef enum {
         Do not duplicate local metadata, just locate the old one */
 
     LRO_HTTPAUTH,  /*!< (long 1 or 0)
-        Enable all supported method of HTTP authentification. */
+        Enable all supported method of HTTP authentification.
+        This option is DEPRECATED!
+        Use LRO_HTTPAUTHMETHODS */
 
     LRO_USERPWD,  /*!< (char *)
         User and password for http authetification in format user:password */
@@ -144,7 +158,9 @@ typedef enum {
         Type of the proxy used. */
 
     LRO_PROXYAUTH,  /*!< (long 1 or 0)
-        Enable all supported method for proxy authentification */
+        Enable all supported method for proxy authentification.
+        This option is DEPRECATED!
+        Use LRO_PROXYAUTHMETHODS */
 
     LRO_PROXYUSERPWD,  /*!< (char *)
         User and password for proxy in format user:password */
@@ -327,6 +343,23 @@ typedef enum {
         Path to a file containing the list of PEM format trusted CA
         certificates. */
 
+    LRO_HTTPAUTHMETHODS, /*!< (LrAuth)
+        Bitmask which tell Librepo which auth metods you wan to use. */
+
+    LRO_PROXYAUTHMETHODS, /*!< (LrAuth)
+        A long bitmask which tell Librepo which auth methods you want
+        to use for proxy auth. */
+
+    LRO_FTPUSEEPSV, /*!< (long 1 or 0)
+        Enable/Disable EPSV (Extended Passive mode) for FTP. */
+
+    LRO_YUMSLIST, /*!< (LrUrlVars *)
+        Repomd records and their substitutions.
+        [{"group_gz", "group"}], ...;
+        If var record is not listed in repomd, librepo will download val
+        instead. After set the list to the handle, it has not to be freed!
+        Handle itself takes care about freeing the list. */
+
     LRO_SENTINEL,    /*!< Sentinel */
 
 } LrHandleOption; /*!< Handle config options */
@@ -390,6 +423,10 @@ typedef enum {
     LRI_SSLCACERT,              /*!< (char **) */
     LRI_LOWSPEEDTIME,           /*!< (long) */
     LRI_LOWSPEEDLIMIT,          /*!< (long) */
+    LRI_HTTPAUTHMETHODS,        /*!< (LrAuth) */
+    LRI_PROXYAUTHMETHODS,       /*!< (LrAuth) */
+    LRI_FTPUSEEPSV,             /*!< (long) */
+    LRI_YUMSLIST,               /*!< (LrUrlVars **) */
     LRI_SENTINEL,
 } LrHandleInfoOption; /*!< Handle info options */
 
@@ -397,7 +434,7 @@ typedef enum {
  * @return              New allocated handle.
  */
 LrHandle *
-lr_handle_init();
+lr_handle_init(void);
 
 /** Frees handle and its content.
  * @param handle        Handle.
@@ -428,7 +465,7 @@ lr_handle_setopt(LrHandle *handle,
  * @param handle        Librepo handle.
  * @param err           GError **
  * @param option        Option from ::LrHandleInfoOption enum.
- * @param ...           Apropriate variable for the selected option.
+ * @param ...           Appropriate variable for the selected option.
  * @return              TRUE if everything is ok, FALSE if err is set.
  */
 gboolean

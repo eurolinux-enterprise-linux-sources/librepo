@@ -45,7 +45,7 @@ Version contants
             # The command:
             h.setopt(librepo.LRO_URLS, ["http://ftp.linux.ncsu.edu/pub/fedora/linux/releases/17/Everything/i386/os/"])
             # is equivalent to:
-            h.urls = "http://ftp.linux.ncsu.edu/pub/fedora/linux/releases/17/Everything/i386/os/"
+            h.urls = ["http://ftp.linux.ncsu.edu/pub/fedora/linux/releases/17/Everything/i386/os/"]
 
     .. note:: For detailed description of this options consult :class:`.Handle` page.
 
@@ -148,7 +148,7 @@ Version contants
 .. data:: LRO_CONNECTTIMEOUT
 
     *Integer or None. Set maximal timeout in sec for connection phase.
-    Default value is 300. None as *val* sets the default value.
+    Default value is 30. None as *val* sets the default value.
 
 .. data:: LRO_IGNOREMISSING
 
@@ -256,6 +256,12 @@ Version contants
     all metadata files will be downloaded. If *val* is ``[]`` or ``[None]``
     only ``repomd.xml`` will be downloaded.
 
+.. data:: LRO_YUMSLIST
+
+    *[(String, String), ...] or None*. Set list of substitutions
+    for repomd records.
+    ``[("group_gz", "group")]`
+
 .. data:: LRO_RPMMDDLIST
 
     See LRO_YUMDLIST
@@ -338,7 +344,7 @@ Version contants
 .. data:: LRO_FASTESTMIRRORTIMEOUT
 
     *Float of None* Max length of fastest mirror measurement in seconds.
-    Default value is 2sec.
+    Default value is 2.0sec.
 
 .. data:: LRO_HTTPHEADER
 
@@ -356,6 +362,21 @@ Version contants
     *Boolean* Make the handle work only locally, all remote URLs are
     ignored. Remote mirrorlists/metalinks (if they are specified)
     are ignored. Fastest mirror check (if enabled) is skiped.
+
+.. data:: LRO_HTTPAUTHMETHODS
+
+    *Long (bitmask)* Bitmask which tell Librepo which auth metods to use.
+    See: :ref:`auth-methods-label`
+
+.. data:: LRO_PROXYAUTHMETHODS
+
+    *Long (bitmask)* Bitmask which tell Librepo which auth metods to use
+    for proxy authentication.
+    See: :ref:`auth-methods-label`
+
+.. data:: LRO_FTPUSEEPSV
+
+    *Boolean* Enable/Disable EPSV (Extended Passive mode) for FTP.
 
 
 .. _handle-info-options-label:
@@ -378,6 +399,7 @@ Version contants
 .. data:: LRI_REPOTYPE
 .. data:: LRI_USERAGENT
 .. data:: LRI_YUMDLIST
+.. data:: LRI_YUMSLIST
 .. data:: LRI_RPMMDDLIST
 .. data:: LRI_YUMBLIST
 .. data:: LRI_RPMMDBLIST
@@ -402,6 +424,9 @@ Version contants
 .. data:: LRI_FASTESTMIRRORTIMEOUT
 .. data:: LRI_HTTPHEADER
 .. data:: LRI_OFFLINE
+.. data:: LRI_HTTPAUTHMETHODS
+.. data:: LRI_PROXYAUTHMETHODS
+.. data:: LRI_FTPUSEEPSV
 
 .. _proxy-type-label:
 
@@ -483,6 +508,57 @@ Predefined yumdlist lists
 
     Download only files used by Hawkey (https://github.com/akozumpl/hawkey/).
     (primary, filelists, prestodelta)
+
+
+.. _auth-methods-label:
+
+Auth methods
+------------
+
+Supported auth methods for :data:`~.LRO_HTTPAUTHMETHODS` and
+:data:`~.LRO_PROXYAUTHMETHODS` options.
+
+.. data:: LR_AUTH_NONE
+
+    No auth method enabled.
+
+.. data:: LR_AUTH_BASIC
+
+    HTTP Basic authentication (Default).
+
+.. data:: LR_AUTH_DIGEST
+
+    HTTP Digest authentication.
+
+.. data:: LR_AUTH_NEGOTIATE
+
+    HTTP Negotiate (SPNEGO) authentication.
+
+.. data:: LR_AUTH_NTLM
+
+    HTTP NTLM authentication.
+
+.. data:: LR_AUTH_DIGEST_IE
+
+    HTTP Digest authentication with an IE flavor.
+
+.. data:: LR_AUTH_NTLM_WB
+
+    NTLM delegating to winbind helper.
+
+.. data:: LR_AUTH_ONLY
+
+    This is a meta symbol. OR this value
+    together with a single specific auth
+    value to force libcurl to probe for
+    un-restricted auth and if not, only
+    that single auth algorithm is
+    acceptable.
+
+.. data:: LR_AUTH_ANY
+
+    All suitable methods.
+
 
 .. _fastestmirror-stages-constants-label:
 
@@ -1053,6 +1129,11 @@ def checksum_str_to_type(name):
     name = name.lower()
     return _CHECKSUM_STR_TO_VAL_MAP.get(name, CHECKSUM_UNKNOWN)
 
+class MetadataTarget(_librepo.MetadataTarget):
+
+    def __init__(self, handle=None, cbdata=None, progresscb=None, mirrorfailurecb=None, endcb=None, gnupghomedir=None):
+        _librepo.MetadataTarget.__init__(self, handle, cbdata, progresscb, mirrorfailurecb, endcb, gnupghomedir)
+
 class PackageTarget(_librepo.PackageTarget):
     """
     Represent a single package that will be downloaded by
@@ -1253,6 +1334,10 @@ class Handle(_librepo.Handle):
 
         See: :data:`.LRO_YUMDLIST`
 
+    .. attribute:: yumslist:
+
+        See: :data:`.LRO_YUMSLIST`
+
     .. attribute:: rpmmdblist:
 
         See: :data:`.LRO_RPMMDBLIST`
@@ -1312,6 +1397,18 @@ class Handle(_librepo.Handle):
     .. attribute:: offline:
 
         See :data:`.LRO_OFFLINE`
+
+    .. attribute:: httpauthmethods
+
+        See :data:`.LRO_HTTPAUTHMETHODS`
+
+    .. attribute:: proxyauthmethods
+
+        See :data:`.LRO_PROXYAUTHMETHODS`
+
+    .. attribute:: ftpuseepsv
+
+        See :data:`.LRO_FTPUSEEPSV`
 
     """
 
@@ -1483,11 +1580,25 @@ class Result(_librepo.Result):
 
 # Functions
 
+def download_metadata(list):
+    """
+    Download metadata. *list* is a list of
+    :class:`~librepo.MetadataTarget` objects.
+    Exception is raised only if a nonrecoverable
+    error related to the function itself is meet
+    (Errors related to individual downloads are
+    reported via corresponding MetadataTarget objects)
+
+    :param list: List of :class:`~.librepo.MetadataTarget` objects.
+    :returns: *None*
+    """
+    return _librepo.download_metadata(list)
+
 def download_packages(list, failfast=False):
     """
     Download list of packages. *list* is a list of
     :class:`~librepo.PackageTarget` objects.
-    If the *failfast* is True, then whole downloading is stoped
+    If the *failfast* is True, then whole downloading is stopped
     immediately when any of download fails (and exception is raised).
     If the failfast is False, then this function returns after all
     downloads finish (no matter if successfully or unsuccessfully)
@@ -1529,9 +1640,11 @@ def set_debug_log_handler(log_function, user_data=None):
     """
     ONLY FOR DEVELOPMENT (DEBUGGING) PURPOSES!
 
+    (Deprecated, use :func:`~log_set_file` instead)
+
     When python debug log handler is used, the librepo is **THREAD-UNSAFE**!
 
-    If used, it overrides logging set by log_set_file and vice versa.
+    If used, it overrides logging set by :func:`~log_set_file` and vice versa.
 
     :param log_function: Function that will handle the debug messages.
     :param user_data: An data you want to be passed to the log_function

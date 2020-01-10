@@ -113,7 +113,7 @@ struct _LrHandle {
         Type of repository */
 
     LrChecks checks; /*!<
-        Which check sould be applied */
+        Which check should be applied */
 
     LrProgressCb user_cb; /*!<
         User progress callback */
@@ -170,7 +170,7 @@ struct _LrHandle {
         Determines whether verify the autenticity of the peer's certificate */
 
     long sslverifyhost; /*!<
-        Determines whether the server name should be checked agains the name
+        Determines whether the server name should be checked against the name
         in the certificate */
 
     char *sslclientcert; /*!<
@@ -203,13 +203,20 @@ struct _LrHandle {
         Curl doesn't copy HTTP header values from curl_slist.
         We need to keep them around. */
 
-    struct curl_slist *curl_httpheader; /*!<
-        Curl's list of HTTP headers - items in the list
-        refers into the httpheader list (defined above) */
-
     gboolean offline; /*!<
         If TRUE, librepo should work offline - ignore all
         non local URLs, etc. */
+
+    LrAuth httpauthmethods; /*!<
+        Bitmask with auth methods */
+
+    LrAuth proxyauthmethods; /*!<
+        Bitmask with auth methods */
+
+    long ftpuseepsv; /*!<
+        Use FTP EPSV (extended passive mode) mode */
+
+    LrUrlVars *yumslist;
 };
 
 /** Return new CURL easy handle with some default options setted.
