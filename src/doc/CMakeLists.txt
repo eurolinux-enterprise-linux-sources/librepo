@@ -1,0 +1,5 @@
+ADD_SUBDIRECTORY (c)
+ADD_SUBDIRECTORY (python)
+
+ADD_CUSTOM_TARGET (doc)
+ADD_DEPENDENCIES (doc doc-python doc-c)

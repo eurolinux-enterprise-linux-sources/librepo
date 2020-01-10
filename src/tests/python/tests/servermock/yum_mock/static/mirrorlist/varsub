@@ -1,0 +1,4 @@
+# varsub
+http://127.0.0.1:{PORT_PLACEHOLDER}/yum/static/$version/
+
+
